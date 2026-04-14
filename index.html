@@ -67,6 +67,30 @@
         .toast-msg.show { opacity: 1; }
         .sync-badge { background: #10b981; color: white; padding: 4px 12px; border-radius: 30px; font-size: 0.8rem; }
         .footer-note { margin-top: 16px; color: #67829c; font-size: 0.85rem; text-align: right; }
+        
+        /* 密码弹窗样式 */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000; visibility: hidden; opacity: 0; transition: 0.2s;
+        }
+        .modal-overlay.show { visibility: visible; opacity: 1; }
+        .modal-box {
+            background: white; border-radius: 32px; padding: 32px;
+            max-width: 380px; width: 90%; box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+        }
+        .modal-box h3 { margin-bottom: 20px; color: #0a2540; }
+        .modal-box input {
+            width: 100%; padding: 14px 18px; font-size: 1.2rem; text-align: center;
+            border: 2px solid #dde7f0; border-radius: 24px; margin-bottom: 20px;
+            letter-spacing: 4px;
+        }
+        .modal-box input:focus { border-color: #3b82f6; outline: none; }
+        .modal-actions { display: flex; gap: 12px; }
+        .modal-actions button { flex: 1; padding: 12px; border-radius: 40px; font-weight: 600; cursor: pointer; }
+        .btn-confirm { background: #0a2540; color: white; border: none; }
+        .btn-cancel { background: #f1f5f9; color: #1e293b; border: none; }
     </style>
 </head>
 <body>
@@ -76,7 +100,7 @@
             <span>🏪 店铺ID共享板</span>
             <span class="sync-badge" id="syncStatus">☁️ 已连接云端</span>
         </h1>
-        <div class="subhead">所有人都可以上传 · 多设备实时同步 · 数据存储在 Supabase</div>
+        <div class="subhead">所有人都可以上传 · 多设备实时同步 · 删除需密码</div>
         
         <div class="upload-grid">
             <div class="input-group">
@@ -90,7 +114,7 @@
             <button class="btn btn-primary" id="addBtn">➕ 上传共享</button>
             <button class="btn btn-outline" id="clearFormBtn">🗑️ 清空</button>
         </div>
-        <div style="margin-top: 12px; font-size: 0.8rem; color: #5f7d9c;">✔️ 上传后所有设备实时同步</div>
+        <div style="margin-top: 12px; font-size: 0.8rem; color: #5f7d9c;">✔️ 上传后所有设备实时同步 · 删除需要密码</div>
     </div>
 
     <div class="card" style="padding-bottom: 20px;">
@@ -123,13 +147,27 @@
         <div class="footer-note" id="lastUpdateTip">—</div>
     </div>
 </div>
+
+<!-- 密码弹窗 -->
+<div class="modal-overlay" id="passwordModal">
+    <div class="modal-box">
+        <h3>🔐 请输入删除密码</h3>
+        <input type="password" id="passwordInput" placeholder="密码" maxlength="10">
+        <div class="modal-actions">
+            <button class="btn-confirm" id="confirmPasswordBtn">确认</button>
+            <button class="btn-cancel" id="cancelPasswordBtn">取消</button>
+        </div>
+    </div>
+</div>
+
 <div class="toast-msg" id="toast"></div>
 
 <script type="module">
-    // ========== 您的 Supabase 配置（已填入）==========
+    // ========== 您的 Supabase 配置 ==========
     const SUPABASE_URL = 'https://sqhcbwqrpyzglbcclzzj.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxaGNid3FycHl6Z2xiY2NsenpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxODIwMDUsImV4cCI6MjA5MTc1ODAwNX0.1-MdHopPxwfzU9Zu78Ae4FiyMazAPswrA4HwcHJKeP0';
-    // ================================================
+    const DELETE_PASSWORD = '12345';  // 删除密码
+    // ========================================
 
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -149,9 +187,17 @@
     const lastUpdateTip = document.getElementById('lastUpdateTip');
     const toastEl = document.getElementById('toast');
     const syncStatus = document.getElementById('syncStatus');
+    
+    // 密码弹窗元素
+    const passwordModal = document.getElementById('passwordModal');
+    const passwordInput = document.getElementById('passwordInput');
+    const confirmPasswordBtn = document.getElementById('confirmPasswordBtn');
+    const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
 
     let allRecords = [];
     let searchKeyword = '';
+    let pendingDeleteId = null;        // 待删除的单条记录ID
+    let pendingAction = null;          // 'single' 或 'all'
 
     function showToast(text) {
         toastEl.textContent = text;
@@ -240,18 +286,52 @@
         await loadRecords();
     }
 
-    // 删除记录
-    async function deleteRecord(id) {
+    // 显示密码弹窗
+    function showPasswordModal(action, id = null) {
+        pendingAction = action;
+        pendingDeleteId = id;
+        passwordInput.value = '';
+        passwordModal.classList.add('show');
+        passwordInput.focus();
+    }
+
+    // 隐藏密码弹窗
+    function hidePasswordModal() {
+        passwordModal.classList.remove('show');
+        pendingDeleteId = null;
+        pendingAction = null;
+    }
+
+    // 验证密码并执行删除
+    function verifyAndDelete() {
+        const pwd = passwordInput.value.trim();
+        if (pwd !== DELETE_PASSWORD) {
+            showToast('❌ 密码错误');
+            passwordInput.value = '';
+            passwordInput.focus();
+            return;
+        }
+        
+        hidePasswordModal();
+        
+        if (pendingAction === 'single' && pendingDeleteId) {
+            executeDeleteSingle(pendingDeleteId);
+        } else if (pendingAction === 'all') {
+            executeDeleteAll();
+        }
+    }
+
+    // 执行单条删除
+    async function executeDeleteSingle(id) {
         const { error } = await supabase.from('store_records').delete().eq('id', id);
         if (error) { showToast('❌ 删除失败'); return; }
         showToast('🗑️ 已删除');
         await loadRecords();
     }
 
-    // 清空所有
-    async function clearAll() {
+    // 执行全部删除
+    async function executeDeleteAll() {
         if (allRecords.length === 0) { showToast('📋 已经没有数据了'); return; }
-        if (!confirm(`确定清空全部 ${allRecords.length} 条记录吗？此操作不可撤销。`)) return;
         
         const { error } = await supabase.from('store_records').delete().neq('id', 0);
         if (error) { showToast('❌ 清空失败'); return; }
@@ -290,12 +370,28 @@
         clearSearchBtn.addEventListener('click', () => { searchInput.value = ''; searchKeyword = ''; renderTable(); searchInput.focus(); });
         
         refreshBtn.addEventListener('click', loadRecords);
-        clearAllBtn.addEventListener('click', clearAll);
         
+        // 清空所有 - 需要密码验证
+        clearAllBtn.addEventListener('click', () => { showPasswordModal('all'); });
+        
+        // 单条删除 - 需要密码验证
         tableBody.addEventListener('click', e => {
             const btn = e.target.closest('.delete-btn');
-            if (btn) deleteRecord(btn.dataset.id);
+            if (btn) {
+                showPasswordModal('single', btn.dataset.id);
+            }
         });
+
+        // 密码弹窗事件
+        confirmPasswordBtn.addEventListener('click', verifyAndDelete);
+        cancelPasswordBtn.addEventListener('click', hidePasswordModal);
+        passwordInput.addEventListener('keypress', e => { if (e.key === 'Enter') verifyAndDelete(); });
+        
+        // 点击遮罩关闭
+        passwordModal.addEventListener('click', e => { if (e.target === passwordModal) hidePasswordModal(); });
+        
+        // ESC 关闭
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && passwordModal.classList.contains('show')) hidePasswordModal(); });
     }
 
     init();

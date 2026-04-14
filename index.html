@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>店铺ID共享板 · 云端同步</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(145deg, #f6f9fc 0%, #e9f2f9 100%);
+            min-height: 100vh; padding: 24px 16px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card {
+            background: rgba(255,255,255,0.9); backdrop-filter: blur(8px);
+            border-radius: 32px; box-shadow: 0 20px 40px -8px rgba(0,20,40,0.12);
+            padding: 28px 24px; margin-bottom: 24px;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+        h1 { display: flex; align-items: center; gap: 12px; font-weight: 650; font-size: 2rem; color: #0a2540; margin-bottom: 8px; }
+        .subhead { color: #5b6f82; margin-bottom: 24px; border-left: 4px solid #3b82f6; padding-left: 18px; }
+        .upload-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+        .input-group { flex: 2 1 220px; }
+        .input-group label { font-size: 0.85rem; font-weight: 600; color: #40647c; display: block; margin-bottom: 6px; }
+        .input-group input {
+            width: 100%; padding: 14px 18px; font-size: 1rem; background: white;
+            border: 1.5px solid #dde7f0; border-radius: 24px; outline: none;
+        }
+        .input-group input:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,0.15); }
+        .btn {
+            background: #0a2540; color: white; border: none; padding: 14px 28px;
+            border-radius: 40px; font-weight: 600; font-size: 1rem; cursor: pointer;
+            box-shadow: 0 8px 16px -6px rgba(0,0,0,0.2); display: inline-flex;
+            align-items: center; gap: 8px; flex: 0 0 auto;
+        }
+        .btn-primary { background: #0a2540; }
+        .btn-primary:hover { background: #1e3a5f; transform: scale(1.02); }
+        .btn-outline { background: transparent; color: #1e293b; box-shadow: none; border: 1.5px solid #bdd3e8; }
+        .btn-outline:hover { background: #f0f7ff; }
+        .search-section { display: flex; gap: 12px; margin-bottom: 20px; }
+        .search-wrapper { flex: 1; position: relative; }
+        .search-wrapper input {
+            width: 100%; padding: 15px 22px 15px 50px; border: 1.5px solid #dde7f0;
+            border-radius: 48px; font-size: 1rem; background: white;
+        }
+        .search-icon { position: absolute; left: 20px; top: 15px; color: #6f8faa; font-size: 1.2rem; }
+        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
+        .badge { background: #d4e2f0; padding: 6px 16px; border-radius: 30px; color: #1e3a5f; font-weight: 500; }
+        .action-group { display: flex; gap: 10px; }
+        .table-wrapper { overflow-x: auto; border-radius: 24px; background: rgba(255,255,255,0.5); }
+        table { width: 100%; border-collapse: collapse; }
+        th { padding: 18px 16px; background: #eef4fa; color: #1e3a5f; font-weight: 650; text-align: left; white-space: nowrap; }
+        td { padding: 16px; border-bottom: 1px solid #e2ecf5; color: #1f384e; }
+        .store-id { font-family: 'SF Mono', monospace; font-weight: 600; color: #075985; }
+        .delete-btn {
+            background: none; border: none; color: #a0b8cc; font-size: 1.2rem;
+            cursor: pointer; padding: 6px 10px; border-radius: 30px; transition: 0.15s;
+        }
+        .delete-btn:hover { background: #fee2e2; color: #b91c1c; }
+        .empty-row td { text-align: center; padding: 40px; color: #7c96b0; }
+        .toast-msg {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: #1e293b; color: white; padding: 12px 30px; border-radius: 60px;
+            opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 999;
+        }
+        .toast-msg.show { opacity: 1; }
+        .sync-badge { background: #10b981; color: white; padding: 4px 12px; border-radius: 30px; font-size: 0.8rem; }
+        .footer-note { margin-top: 16px; color: #67829c; font-size: 0.85rem; text-align: right; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>
+            <span>🏪 店铺ID共享板</span>
+            <span class="sync-badge" id="syncStatus">☁️ 已连接云端</span>
+        </h1>
+        <div class="subhead">所有人都可以上传 · 多设备实时同步 · 数据存储在 Supabase</div>
+        
+        <div class="upload-grid">
+            <div class="input-group">
+                <label>🆔 店铺ID *</label>
+                <input type="text" id="storeIdInput" placeholder="例如: 8832912" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label>📝 备注信息</label>
+                <input type="text" id="remarkInput" placeholder="店主称呼 / 特征 / 标签" autocomplete="off">
+            </div>
+            <button class="btn btn-primary" id="addBtn">➕ 上传共享</button>
+            <button class="btn btn-outline" id="clearFormBtn">🗑️ 清空</button>
+        </div>
+        <div style="margin-top: 12px; font-size: 0.8rem; color: #5f7d9c;">✔️ 上传后所有设备实时同步</div>
+    </div>
+
+    <div class="card" style="padding-bottom: 20px;">
+        <div class="search-section">
+            <div class="search-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchInput" placeholder="搜索店铺ID、备注……" autocomplete="off">
+            </div>
+            <button class="btn btn-outline" id="clearSearchBtn">✖️ 清除</button>
+        </div>
+
+        <div class="toolbar">
+            <div class="badge" id="recordCount">📋 加载中...</div>
+            <div class="action-group">
+                <button class="btn-outline btn" id="refreshBtn" style="padding: 10px 20px;">🔄 刷新</button>
+                <button class="btn-outline btn" id="clearAllBtn" style="color: #b45353; border-color: #f1cfcf;">⚠️ 清空所有</button>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr><th>店铺ID</th><th>备注信息</th><th>上传时间</th><th style="width:70px"></th></tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr class="empty-row"><td colspan="4">✨ 加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="footer-note" id="lastUpdateTip">—</div>
+    </div>
+</div>
+<div class="toast-msg" id="toast"></div>
+
+<script type="module">
+    // ========== 您的 Supabase 配置（已填入）==========
+    const SUPABASE_URL = 'https://sqhcbwqrpyzglbcclzzj.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxaGNid3FycHl6Z2xiY2NsenpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxODIwMDUsImV4cCI6MjA5MTc1ODAwNX0.1-MdHopPxwfzU9Zu78Ae4FiyMazAPswrA4HwcHJKeP0';
+    // ================================================
+
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // DOM 元素
+    const storeIdInput = document.getElementById('storeIdInput');
+    const remarkInput = document.getElementById('remarkInput');
+    const addBtn = document.getElementById('addBtn');
+    const clearFormBtn = document.getElementById('clearFormBtn');
+    const searchInput = document.getElementById('searchInput');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const tableBody = document.getElementById('tableBody');
+    const recordCount = document.getElementById('recordCount');
+    const lastUpdateTip = document.getElementById('lastUpdateTip');
+    const toastEl = document.getElementById('toast');
+    const syncStatus = document.getElementById('syncStatus');
+
+    let allRecords = [];
+    let searchKeyword = '';
+
+    function showToast(text) {
+        toastEl.textContent = text;
+        toastEl.classList.add('show');
+        setTimeout(() => toastEl.classList.remove('show'), 2000);
+    }
+
+    function formatTime(timestamp) {
+        if (!timestamp) return '—';
+        const d = new Date(timestamp);
+        return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
+    function escapeHtml(text) {
+        if (!text) return text;
+        return String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] || c);
+    }
+
+    // 加载所有数据
+    async function loadRecords() {
+        const { data, error } = await supabase
+            .from('store_records')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) {
+            console.error('加载失败:', error);
+            syncStatus.textContent = '⚠️ 连接失败';
+            syncStatus.style.background = '#ef4444';
+            return;
+        }
+        
+        allRecords = data || [];
+        syncStatus.textContent = '☁️ 已连接云端';
+        syncStatus.style.background = '#10b981';
+        renderTable();
+        
+        const now = new Date();
+        lastUpdateTip.textContent = `📌 最后同步 ${now.toLocaleTimeString()}`;
+    }
+
+    function renderTable() {
+        const filtered = allRecords.filter(r => {
+            if (!searchKeyword.trim()) return true;
+            const kw = searchKeyword.trim().toLowerCase();
+            return (r.store_id && r.store_id.toLowerCase().includes(kw)) ||
+                   (r.remark && r.remark.toLowerCase().includes(kw));
+        });
+
+        if (allRecords.length === 0) {
+            tableBody.innerHTML = `<tr class="empty-row"><td colspan="4">✨ 还没有数据，上传一条吧</td></tr>`;
+        } else if (filtered.length === 0) {
+            tableBody.innerHTML = `<tr class="empty-row"><td colspan="4">🔎 没有匹配的记录</td></tr>`;
+        } else {
+            tableBody.innerHTML = filtered.map(r => `
+                <tr>
+                    <td><span class="store-id">${escapeHtml(r.store_id)}</span></td>
+                    <td>${escapeHtml(r.remark || '—')}</td>
+                    <td>${formatTime(r.created_at)}</td>
+                    <td><button class="delete-btn" data-id="${r.id}">🗑️</button></td>
+                </tr>
+            `).join('');
+        }
+
+        const total = allRecords.length;
+        const showing = filtered.length;
+        recordCount.textContent = searchKeyword ? `🔎 显示 ${showing} / ${total} 条` : `📋 ${total} 条记录`;
+    }
+
+    // 添加记录
+    async function addRecord() {
+        const storeId = storeIdInput.value.trim();
+        if (!storeId) { showToast('❌ 请填写店铺ID'); return; }
+        
+        const remark = remarkInput.value.trim();
+        
+        const { error } = await supabase
+            .from('store_records')
+            .insert([{ store_id: storeId, remark: remark || '' }]);
+        
+        if (error) { showToast('❌ 上传失败: ' + error.message); console.error(error); return; }
+        
+        storeIdInput.value = '';
+        remarkInput.value = '';
+        showToast(`✅ 已上传店铺 ${storeId}`);
+        await loadRecords();
+    }
+
+    // 删除记录
+    async function deleteRecord(id) {
+        const { error } = await supabase.from('store_records').delete().eq('id', id);
+        if (error) { showToast('❌ 删除失败'); return; }
+        showToast('🗑️ 已删除');
+        await loadRecords();
+    }
+
+    // 清空所有
+    async function clearAll() {
+        if (allRecords.length === 0) { showToast('📋 已经没有数据了'); return; }
+        if (!confirm(`确定清空全部 ${allRecords.length} 条记录吗？此操作不可撤销。`)) return;
+        
+        const { error } = await supabase.from('store_records').delete().neq('id', 0);
+        if (error) { showToast('❌ 清空失败'); return; }
+        showToast('🧹 已清空所有数据');
+        await loadRecords();
+    }
+
+    // 实时订阅
+    function setupRealtime() {
+        supabase
+            .channel('store_records_channel')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'store_records' }, (payload) => {
+                console.log('实时更新:', payload);
+                loadRecords();
+                syncStatus.textContent = '🔄 同步中...';
+                setTimeout(() => {
+                    syncStatus.textContent = '☁️ 已连接云端';
+                    syncStatus.style.background = '#10b981';
+                }, 500);
+            })
+            .subscribe();
+    }
+
+    // 初始化
+    async function init() {
+        await loadRecords();
+        setupRealtime();
+
+        addBtn.addEventListener('click', addRecord);
+        clearFormBtn.addEventListener('click', () => { storeIdInput.value = ''; remarkInput.value = ''; storeIdInput.focus(); });
+        
+        storeIdInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addRecord(); } });
+        remarkInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addRecord(); } });
+        
+        searchInput.addEventListener('input', e => { searchKeyword = e.target.value; renderTable(); });
+        clearSearchBtn.addEventListener('click', () => { searchInput.value = ''; searchKeyword = ''; renderTable(); searchInput.focus(); });
+        
+        refreshBtn.addEventListener('click', loadRecords);
+        clearAllBtn.addEventListener('click', clearAll);
+        
+        tableBody.addEventListener('click', e => {
+            const btn = e.target.closest('.delete-btn');
+            if (btn) deleteRecord(btn.dataset.id);
+        });
+    }
+
+    init();
+</script>
+</body>
+</html>

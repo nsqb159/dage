@@ -357,7 +357,7 @@
         remarkInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addRecord(); } });
         searchInput.addEventListener('input', e => { searchKeyword = e.target.value; renderTable(); });
         clearSearchBtn.addEventListener('click', () => { searchInput.value = ''; searchKeyword = ''; renderTable(); searchInput.focus(); });
-        refreshBtn.addEventListener('click', loadRecords);
+        refreshBtn.addEventListener('click', () => { window.location.reload(); });
         clearAllBtn.addEventListener('click', () => { showPasswordModal('all'); });
         
         tableBody.addEventListener('click', e => {

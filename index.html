@@ -4,7 +4,7 @@
     <link rel="icon" type="image/png" href="icon1.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>独立页面</title>
+    <title>值守店铺共享</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -13,23 +13,6 @@
             min-height: 100vh;
         }
         #content { min-height: 100vh; }
-        .loading { 
-            text-align: center; 
-            padding: 80px 20px; 
-            color: #999;
-            font-size: 16px;
-        }
-        .loading svg {
-            width: 60px;
-            height: 60px;
-            margin-bottom: 20px;
-            opacity: 0.5;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
         .error {
             text-align: center;
             padding: 80px 20px;
@@ -38,15 +21,7 @@
     </style>
 </head>
 <body>
-    <div id="content">
-        <div class="loading">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
-                <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
-            </svg>
-            <p>⏳ 加载中...</p>
-        </div>
-    </div>
+    <div id="content"></div>
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -55,8 +30,8 @@
         const SUPABASE_URL = 'https://sqhcbwqrpyzglbcclzzj.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxaGNid3FycHl6Z2xiY2NsenpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxODIwMDUsImV4cCI6MjA5MTc1ODAwNX0.1-MdHopPxwfzU9Zu78Ae4FiyMazAPswrA4HwcHJKeP0';
         
-        // 🔥 在这里修改要加载的页面名称
-        const PAGE_NAME = '值守店铺共享';  // 改成您想要的页面名称
+        // 🔥 页面名称
+        const PAGE_NAME = '值守店铺共享';
         // =============================
 
         const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -101,7 +76,7 @@
             }
 
             // 注入 HTML
-            contentDiv.innerHTML = data.html_content || '<div class="loading">暂无内容</div>';
+            contentDiv.innerHTML = data.html_content || '';
 
             // 执行 JavaScript
             if (data.js_content) {
@@ -113,7 +88,7 @@
             }
         }
 
-        // 加载指定页面
+        // 立即加载页面，不显示加载动画
         loadPage(PAGE_NAME);
     </script>
 </body>

@@ -286,8 +286,40 @@
         await loadRecords();
     }
 
+    // 执行单条删除
+    async function executeDeleteSingle(id) {
+        console.log('执行单条删除, ID:', id);
+        const { error } = await supabase.from('store_records').delete().eq('id', id);
+        if (error) { 
+            showToast('❌ 删除失败: ' + error.message); 
+            console.error(error); 
+            return; 
+        }
+        showToast('🗑️ 已删除');
+        await loadRecords();
+    }
+
+    // 执行全部删除
+    async function executeDeleteAll() {
+        console.log('执行全部删除');
+        if (allRecords.length === 0) { 
+            showToast('📋 已经没有数据了'); 
+            return; 
+        }
+        
+        const { error } = await supabase.from('store_records').delete().neq('id', 0);
+        if (error) { 
+            showToast('❌ 清空失败: ' + error.message); 
+            console.error(error); 
+            return; 
+        }
+        showToast('🧹 已清空所有数据');
+        await loadRecords();
+    }
+
     // 显示密码弹窗
     function showPasswordModal(action, id = null) {
+        console.log('显示密码弹窗, action:', action, 'id:', id);
         pendingAction = action;
         pendingDeleteId = id;
         passwordInput.value = '';
@@ -298,13 +330,15 @@
     // 隐藏密码弹窗
     function hidePasswordModal() {
         passwordModal.classList.remove('show');
-        pendingDeleteId = null;
-        pendingAction = null;
+        // 注意：不要在这里清空 pending 变量，因为可能是验证失败后关闭，下次还要用
+        // 只有在成功执行后才清空
     }
 
     // 验证密码并执行删除
-    function verifyAndDelete() {
+    async function verifyAndDelete() {
         const pwd = passwordInput.value.trim();
+        console.log('验证密码, 输入:', pwd, 'pendingAction:', pendingAction, 'pendingDeleteId:', pendingDeleteId);
+        
         if (pwd !== DELETE_PASSWORD) {
             showToast('❌ 密码错误');
             passwordInput.value = '';
@@ -312,31 +346,24 @@
             return;
         }
         
-        hidePasswordModal();
+        // 密码正确，先关闭弹窗
+        passwordModal.classList.remove('show');
         
-        if (pendingAction === 'single' && pendingDeleteId) {
-            executeDeleteSingle(pendingDeleteId);
-        } else if (pendingAction === 'all') {
-            executeDeleteAll();
+        // 保存待执行的操作
+        const action = pendingAction;
+        const id = pendingDeleteId;
+        
+        // 清空 pending 状态
+        pendingAction = null;
+        pendingDeleteId = null;
+        passwordInput.value = '';
+        
+        // 执行对应的删除操作
+        if (action === 'single' && id) {
+            await executeDeleteSingle(id);
+        } else if (action === 'all') {
+            await executeDeleteAll();
         }
-    }
-
-    // 执行单条删除
-    async function executeDeleteSingle(id) {
-        const { error } = await supabase.from('store_records').delete().eq('id', id);
-        if (error) { showToast('❌ 删除失败'); return; }
-        showToast('🗑️ 已删除');
-        await loadRecords();
-    }
-
-    // 执行全部删除
-    async function executeDeleteAll() {
-        if (allRecords.length === 0) { showToast('📋 已经没有数据了'); return; }
-        
-        const { error } = await supabase.from('store_records').delete().neq('id', 0);
-        if (error) { showToast('❌ 清空失败'); return; }
-        showToast('🧹 已清空所有数据');
-        await loadRecords();
     }
 
     // 实时订阅
@@ -384,14 +411,36 @@
 
         // 密码弹窗事件
         confirmPasswordBtn.addEventListener('click', verifyAndDelete);
-        cancelPasswordBtn.addEventListener('click', hidePasswordModal);
-        passwordInput.addEventListener('keypress', e => { if (e.key === 'Enter') verifyAndDelete(); });
+        cancelPasswordBtn.addEventListener('click', () => {
+            passwordModal.classList.remove('show');
+            pendingAction = null;
+            pendingDeleteId = null;
+        });
+        
+        passwordInput.addEventListener('keypress', e => { 
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                verifyAndDelete();
+            }
+        });
         
         // 点击遮罩关闭
-        passwordModal.addEventListener('click', e => { if (e.target === passwordModal) hidePasswordModal(); });
+        passwordModal.addEventListener('click', e => { 
+            if (e.target === passwordModal) {
+                passwordModal.classList.remove('show');
+                pendingAction = null;
+                pendingDeleteId = null;
+            }
+        });
         
         // ESC 关闭
-        document.addEventListener('keydown', e => { if (e.key === 'Escape' && passwordModal.classList.contains('show')) hidePasswordModal(); });
+        document.addEventListener('keydown', e => { 
+            if (e.key === 'Escape' && passwordModal.classList.contains('show')) {
+                passwordModal.classList.remove('show');
+                pendingAction = null;
+                pendingDeleteId = null;
+            }
+        });
     }
 
     init();

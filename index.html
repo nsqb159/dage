@@ -97,10 +97,10 @@
 <div class="container">
     <div class="card">
         <h1>
-            <span>🏪 店铺ID共享板（用于交流值守技巧，提高值守效率服务满意度）</span>
+            <span>🏪 店铺ID共享板</span>
             <span class="sync-badge" id="syncStatus">☁️ 已连接云端</span>
         </h1>
-        <div class="subhead">所有人都可以上传 · 多设备实时同步 · 记录难缠老板存在请勿用于投机取巧！</div>
+        <div class="subhead">所有人都可以上传 · 多设备实时同步 · 删除需密码</div>
         
         <div class="upload-grid">
             <div class="input-group">
@@ -166,7 +166,7 @@
     // ========== 您的 Supabase 配置 ==========
     const SUPABASE_URL = 'https://sqhcbwqrpyzglbcclzzj.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxaGNid3FycHl6Z2xiY2NsenpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxODIwMDUsImV4cCI6MjA5MTc1ODAwNX0.1-MdHopPxwfzU9Zu78Ae4FiyMazAPswrA4HwcHJKeP0';
-    const DELETE_PASSWORD = '12345';  // 删除密码
+    const DELETE_PASSWORD = atob('MTIzNDU=');  // 密码已编码隐藏
     // ========================================
 
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -196,8 +196,8 @@
 
     let allRecords = [];
     let searchKeyword = '';
-    let pendingDeleteId = null;        // 待删除的单条记录ID
-    let pendingAction = null;          // 'single' 或 'all'
+    let pendingDeleteId = null;
+    let pendingAction = null;
 
     function showToast(text) {
         toastEl.textContent = text;
@@ -216,7 +216,6 @@
         return String(text).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] || c);
     }
 
-    // 加载所有数据
     async function loadRecords() {
         const { data, error } = await supabase
             .from('store_records')
@@ -267,7 +266,6 @@
         recordCount.textContent = searchKeyword ? `🔎 显示 ${showing} / ${total} 条` : `📋 ${total} 条记录`;
     }
 
-    // 添加记录
     async function addRecord() {
         const storeId = storeIdInput.value.trim();
         if (!storeId) { showToast('❌ 请填写店铺ID'); return; }
@@ -286,40 +284,22 @@
         await loadRecords();
     }
 
-    // 执行单条删除
     async function executeDeleteSingle(id) {
-        console.log('执行单条删除, ID:', id);
         const { error } = await supabase.from('store_records').delete().eq('id', id);
-        if (error) { 
-            showToast('❌ 删除失败: ' + error.message); 
-            console.error(error); 
-            return; 
-        }
+        if (error) { showToast('❌ 删除失败: ' + error.message); return; }
         showToast('🗑️ 已删除');
         await loadRecords();
     }
 
-    // 执行全部删除
     async function executeDeleteAll() {
-        console.log('执行全部删除');
-        if (allRecords.length === 0) { 
-            showToast('📋 已经没有数据了'); 
-            return; 
-        }
-        
+        if (allRecords.length === 0) { showToast('📋 已经没有数据了'); return; }
         const { error } = await supabase.from('store_records').delete().neq('id', 0);
-        if (error) { 
-            showToast('❌ 清空失败: ' + error.message); 
-            console.error(error); 
-            return; 
-        }
+        if (error) { showToast('❌ 清空失败: ' + error.message); return; }
         showToast('🧹 已清空所有数据');
         await loadRecords();
     }
 
-    // 显示密码弹窗
     function showPasswordModal(action, id = null) {
-        console.log('显示密码弹窗, action:', action, 'id:', id);
         pendingAction = action;
         pendingDeleteId = id;
         passwordInput.value = '';
@@ -327,17 +307,8 @@
         passwordInput.focus();
     }
 
-    // 隐藏密码弹窗
-    function hidePasswordModal() {
-        passwordModal.classList.remove('show');
-        // 注意：不要在这里清空 pending 变量，因为可能是验证失败后关闭，下次还要用
-        // 只有在成功执行后才清空
-    }
-
-    // 验证密码并执行删除
     async function verifyAndDelete() {
         const pwd = passwordInput.value.trim();
-        console.log('验证密码, 输入:', pwd, 'pendingAction:', pendingAction, 'pendingDeleteId:', pendingDeleteId);
         
         if (pwd !== DELETE_PASSWORD) {
             showToast('❌ 密码错误');
@@ -346,19 +317,15 @@
             return;
         }
         
-        // 密码正确，先关闭弹窗
         passwordModal.classList.remove('show');
         
-        // 保存待执行的操作
         const action = pendingAction;
         const id = pendingDeleteId;
         
-        // 清空 pending 状态
         pendingAction = null;
         pendingDeleteId = null;
         passwordInput.value = '';
         
-        // 执行对应的删除操作
         if (action === 'single' && id) {
             await executeDeleteSingle(id);
         } else if (action === 'all') {
@@ -366,12 +333,10 @@
         }
     }
 
-    // 实时订阅
     function setupRealtime() {
         supabase
             .channel('store_records_channel')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'store_records' }, (payload) => {
-                console.log('实时更新:', payload);
                 loadRecords();
                 syncStatus.textContent = '🔄 同步中...';
                 setTimeout(() => {
@@ -382,65 +347,33 @@
             .subscribe();
     }
 
-    // 初始化
     async function init() {
         await loadRecords();
         setupRealtime();
 
         addBtn.addEventListener('click', addRecord);
         clearFormBtn.addEventListener('click', () => { storeIdInput.value = ''; remarkInput.value = ''; storeIdInput.focus(); });
-        
         storeIdInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addRecord(); } });
         remarkInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); addRecord(); } });
-        
         searchInput.addEventListener('input', e => { searchKeyword = e.target.value; renderTable(); });
         clearSearchBtn.addEventListener('click', () => { searchInput.value = ''; searchKeyword = ''; renderTable(); searchInput.focus(); });
-        
         refreshBtn.addEventListener('click', loadRecords);
-        
-        // 清空所有 - 需要密码验证
         clearAllBtn.addEventListener('click', () => { showPasswordModal('all'); });
         
-        // 单条删除 - 需要密码验证
         tableBody.addEventListener('click', e => {
             const btn = e.target.closest('.delete-btn');
-            if (btn) {
-                showPasswordModal('single', btn.dataset.id);
-            }
+            if (btn) showPasswordModal('single', btn.dataset.id);
         });
 
-        // 密码弹窗事件
         confirmPasswordBtn.addEventListener('click', verifyAndDelete);
         cancelPasswordBtn.addEventListener('click', () => {
             passwordModal.classList.remove('show');
             pendingAction = null;
             pendingDeleteId = null;
         });
-        
-        passwordInput.addEventListener('keypress', e => { 
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                verifyAndDelete();
-            }
-        });
-        
-        // 点击遮罩关闭
-        passwordModal.addEventListener('click', e => { 
-            if (e.target === passwordModal) {
-                passwordModal.classList.remove('show');
-                pendingAction = null;
-                pendingDeleteId = null;
-            }
-        });
-        
-        // ESC 关闭
-        document.addEventListener('keydown', e => { 
-            if (e.key === 'Escape' && passwordModal.classList.contains('show')) {
-                passwordModal.classList.remove('show');
-                pendingAction = null;
-                pendingDeleteId = null;
-            }
-        });
+        passwordInput.addEventListener('keypress', e => { if (e.key === 'Enter') { e.preventDefault(); verifyAndDelete(); } });
+        passwordModal.addEventListener('click', e => { if (e.target === passwordModal) { passwordModal.classList.remove('show'); pendingAction = null; pendingDeleteId = null; } });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && passwordModal.classList.contains('show')) { passwordModal.classList.remove('show'); pendingAction = null; pendingDeleteId = null; } });
     }
 
     init();
